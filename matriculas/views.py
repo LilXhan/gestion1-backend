@@ -10,6 +10,17 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+class VerificarEstudianteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            estudiante = Estudiante.objects.get(usuario=request.user)
+            serializer = EstudianteSerializer(estudiante)
+            return Response({"exists": True, "estudiante": serializer.data})
+        except Estudiante.DoesNotExist:
+            return Response({"exists": False})
+
 class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
