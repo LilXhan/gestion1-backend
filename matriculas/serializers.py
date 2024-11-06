@@ -16,6 +16,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class EstudianteSerializer(serializers.ModelSerializer):
+    usuario = serializers.PrimaryKeyRelatedField(read_only=True)  # Configurado como solo lectura
+
     class Meta:
         model = Estudiante
         fields = ['usuario', 'nombre', 'dni', 'fecha_nacimiento', 'grado', 'direccion', 'certificado_estudios']

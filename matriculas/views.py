@@ -21,7 +21,7 @@ class CrearEstudianteAPIView(APIView):
     def post(self, request):
         # Usamos request.data directamente sin modificarlo
         serializer = EstudianteSerializer(data=request.data)
-        
+
         if serializer.is_valid():
             # Guardamos el estudiante y asignamos el usuario autenticado
             estudiante = serializer.save(usuario=request.user)
@@ -41,13 +41,10 @@ class CrearEstudianteAPIView(APIView):
                 'client_secret': intent['client_secret'],
                 'payment_intent_id': intent['id']
             }, status=status.HTTP_200_OK)
-        
-        # Si hay errores, los imprimimos para depuración y los retornamos en la respuesta
+
+        # Imprimir errores de validación para depuración y retornarlos en la respuesta
         print("Errores de validación:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 
 class CrearMatriculaAPIView(APIView):
     permission_classes = [IsAuthenticated]
