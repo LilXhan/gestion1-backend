@@ -7,6 +7,7 @@ from .models import Estudiante, Matricula, Pago
 from .serializers import RegisterSerializer, EstudianteSerializer, MatriculaSerializer
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.decorators import api_view, permission_classes
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -64,3 +65,12 @@ class CrearEstudianteAPIView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_student(request):
+    estudiante = Estudiante.objects.filter(usuario=request.user).first()
+    if estudiante:
+        return Response({"has_student": True, "student_id": estudiante.id}, status=200)
+    else:
+        return Response({"has_student": False}, status=200)
