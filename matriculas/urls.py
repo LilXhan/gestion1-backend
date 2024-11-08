@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterAPIView, CrearEstudianteAPIView,  VerificarEstudianteAPIView, check_student # CrearMatriculaAPIView, CrearPagoAPIView, ConfirmarPagoAPIView,
+from .views import RegisterAPIView, CrearEstudianteAPIView,  VerificarEstudianteAPIView, check_student, perfil_usuario, ConfirmarPagoAPIView # CrearMatriculaAPIView, CrearPagoAPIView, ConfirmarPagoAPIView,
 
 urlpatterns = [
     path('registro/', RegisterAPIView.as_view(), name='registro'),
@@ -9,5 +9,6 @@ urlpatterns = [
     # path('pago/confirmar/<str:payment_intent_id>/', ConfirmarPagoAPIView.as_view(), name='confirmar_pago'),
     path('estudiante/verificar/', VerificarEstudianteAPIView.as_view(), name='verificar_estudiante'),
     path('check-student/', check_student, name='check_student'),
-
+    path('pago/confirmar/<str:payment_intent_id>/', ConfirmarPagoAPIView.as_view(), name='confirmar_pago'),
+    path('perfil/', perfil_usuario, name='perfil_usuario'),
 ]
