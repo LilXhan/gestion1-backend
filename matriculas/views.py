@@ -37,6 +37,7 @@ class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
+
 class CrearEstudianteAPIView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -50,12 +51,12 @@ class CrearEstudianteAPIView(APIView):
             matricula = Matricula.objects.create(estudiante=estudiante, curso="Curso Ejemplo", monto=100.00)
             
             intent = stripe.PaymentIntent.create(
-                amount=int(matricula.monto * 100),  # Stripe usa centavos
+                amount=int(matricula.monto * 100),
                 currency='usd',
                 metadata={'matricula_id': matricula.id}
             )
 
-            Pago.objects.create(matricula=matricula, stripe_payment_intent_id=intent['client_secret'])
+            Pago.objects.create(matricula=matricula, stripe_payment_intent_id=intent['id'])
 
             return Response({
                 'client_secret': intent['client_secret'],
