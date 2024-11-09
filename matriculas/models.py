@@ -4,11 +4,11 @@ from django.contrib.auth.models import User
 class Estudiante(models.Model):
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
     nombre = models.CharField(max_length=100)
-    dni = models.CharField(max_length=8)  # Documento de identidad peruano
+    dni = models.CharField(max_length=8) 
     fecha_nacimiento = models.DateField()
-    grado = models.CharField(max_length=50)  # Grado académico
+    grado = models.CharField(max_length=50) 
     direccion = models.TextField()
-    certificado_estudios = models.FileField(upload_to='certificados/', null=True, blank=True)  # Campo de archivo
+    certificado_estudios = models.FileField(upload_to='certificados/', null=True, blank=True) 
 
     def __str__(self):
         return self.nombre
@@ -17,7 +17,7 @@ class Matricula(models.Model):
     estudiante = models.ForeignKey(Estudiante, on_delete=models.CASCADE)
     curso = models.CharField(max_length=100)
     monto = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
-    estado = models.CharField(max_length=20, default='Pendiente')  # Pendiente o Pagado
+    estado = models.CharField(max_length=20, default='Pendiente') 
 
 class Pago(models.Model):
     matricula = models.ForeignKey(Matricula, on_delete=models.CASCADE)

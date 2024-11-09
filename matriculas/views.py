@@ -4,10 +4,11 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Estudiante, Matricula, Pago, PerfilUsuario
-from .serializers import RegisterSerializer, EstudianteSerializer, UsuarioSerializer, PerfilUsuarioSerializer
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from .serializers import RegisterSerializer, EstudianteSerializer, UsuarioSerializer, PerfilUsuarioSerializer, MatriculaSerializer
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework import viewsets
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -23,32 +24,29 @@ class VerificarEstudianteAPIView(APIView):
             if matricula:
                 pago = Pago.objects.filter(matricula=matricula, estado='Pendiente').first()
                 if pago:
-                    # Recuperar el PaymentIntent en Stripe para obtener el `client_secret`
                     payment_intent = stripe.PaymentIntent.retrieve(pago.stripe_payment_intent_id)
                     return Response({
                         "exists": True,
                         "estudiante": serializer.data,
-                        "client_secret": payment_intent['client_secret']  # Devolver el `client_secret` correcto
+                        "client_secret": payment_intent['client_secret'] 
                     })
 
             return Response({"exists": True, "estudiante": serializer.data})
 
         except Estudiante.DoesNotExist:
             return Response({"exists": False})
-
+    
 class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
-    parser_classes = [MultiPartParser, FormParser]  # Agregar soporte para archivos
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
         user_serializer = self.get_serializer(data=request.data)
         user_serializer.is_valid(raise_exception=True)
         
-        # Crear el usuario
         user = user_serializer.save()
         
-        # Crear el perfil de usuario y asignar la foto de perfil si se proporciona
         perfil_data = {}
         if 'foto_perfil' in request.data:
             perfil_data['foto_perfil'] = request.data['foto_perfil']
@@ -87,24 +85,23 @@ class CrearEstudianteAPIView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def check_student(request):
-    estudiante = Estudiante.objects.filter(usuario=request.user).first()
-    if estudiante:
-        matricula = Matricula.objects.filter(estudiante=estudiante).first()
-        
-        if matricula:
-            pago = Pago.objects.filter(matricula=matricula).first()
-            if pago and pago.estado == 'Completado':
-                return Response({"has_student": True, "payment_completed": True}, status=200)
-            elif pago and pago.estado == 'Pendiente':
-                # Recuperar el PaymentIntent en Stripe para obtener el `client_secret`
-                payment_intent = stripe.PaymentIntent.retrieve(pago.stripe_payment_intent_id)
-                return Response({"has_student": True, "payment_completed": False, "client_secret": payment_intent['client_secret']}, status=200)
 
-        return Response({"has_student": True, "payment_completed": False}, status=200)
-    else:
+class CheckStudentStatusAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        estudiante = Estudiante.objects.filter(usuario=request.user).first()
+        if estudiante:
+            matricula = Matricula.objects.filter(estudiante=estudiante).first()
+            if matricula:
+                pago = Pago.objects.filter(matricula=matricula).first()
+                estado = "rechazada" if matricula.estado == "Rechazado" else None
+                return Response({
+                    "has_student": True,
+                    "matricula_rechazada": estado == "rechazada",
+                    "payment_completed": pago.estado == "Completado" if pago else False,
+                    "client_secret": stripe.PaymentIntent.retrieve(pago.stripe_payment_intent_id).client_secret if pago else None
+                })
         return Response({"has_student": False}, status=200)
     
 class ConfirmarPagoAPIView(APIView):
@@ -112,16 +109,13 @@ class ConfirmarPagoAPIView(APIView):
 
     def post(self, request, payment_intent_id):
         try:
-            # Verificar el estado del PaymentIntent en Stripe
             payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
 
             if payment_intent['status'] == 'succeeded':
-                # Obtener el pago y la matrícula relacionados
                 pago = Pago.objects.get(stripe_payment_intent_id=payment_intent_id)
                 pago.estado = 'Completado'
                 pago.save()
 
-                # Actualizar el estado de la matrícula a 'Pagado'
                 matricula = pago.matricula
                 matricula.estado = 'Pagado'
                 matricula.save()
@@ -147,12 +141,10 @@ def perfil_usuario(request):
     elif request.method == 'PUT':
         perfil, created = PerfilUsuario.objects.get_or_create(usuario=user)
         
-        # Actualizar el perfil del usuario
         perfil_serializer = PerfilUsuarioSerializer(perfil, data=request.data, partial=True)
         if perfil_serializer.is_valid():
             perfil_serializer.save()
             
-            # También actualizar el nombre de usuario si está en los datos
             if 'username' in request.data:
                 user.username = request.data['username']
                 user.save()
@@ -160,3 +152,43 @@ def perfil_usuario(request):
             return Response(perfil_serializer.data, status=status.HTTP_200_OK)
         
         return Response(perfil_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+class MatriculaViewSet(viewsets.ModelViewSet):
+    queryset = Matricula.objects.all()
+    serializer_class = MatriculaSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'verificar']:
+            self.permission_classes = [IsAuthenticated, IsAdminUser]
+        return super().get_permissions()
+
+    @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated, IsAdminUser])
+    def verificar(self, request, pk=None):
+        matricula = self.get_object()
+        nuevo_estado = request.data.get('estado')
+        if nuevo_estado in ['Aprobado', 'Rechazado', 'Pendiente']:
+            matricula.estado = nuevo_estado
+            matricula.save()
+            return Response({"message": "Estado de la matrícula actualizado"}, status=status.HTTP_200_OK)
+        return Response({"error": "Estado no válido"}, status=status.HTTP_400_BAD_REQUEST)
+    
+class UserRoleAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        role = 'authenticated' 
+        if user.is_staff:
+            role = 'is_staff'
+        elif user.is_superuser:
+            role = 'is_admin'
+        
+        return Response({"role": role})
+    
+class MatriculaListAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        matriculas = Matricula.objects.all()
+        serializer = MatriculaSerializer(matriculas, many=True)
+        return Response(serializer.data)
