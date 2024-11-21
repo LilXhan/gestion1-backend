@@ -44,19 +44,23 @@ class RegisterAPIView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         user_serializer = self.get_serializer(data=request.data)
         user_serializer.is_valid(raise_exception=True)
-        
+
+        # Crear el usuario
         user = user_serializer.save()
-        
-        perfil_data = {}
-        if 'foto_perfil' in request.data:
-            perfil_data['foto_perfil'] = request.data['foto_perfil']
-        
-        perfil_serializer = PerfilUsuarioSerializer(data=perfil_data)
-        if perfil_serializer.is_valid():
-            perfil_serializer.save(usuario=user)
-        
+
+        # Manejar el perfil
+        if not PerfilUsuario.objects.filter(usuario=user).exists():
+            perfil_data = {}
+            if 'foto_perfil' in request.data:
+                perfil_data['foto_perfil'] = request.data['foto_perfil']
+
+            perfil_serializer = PerfilUsuarioSerializer(data=perfil_data)
+            if perfil_serializer.is_valid():
+                perfil_serializer.save(usuario=user)
+
         headers = self.get_success_headers(user_serializer.data)
         return Response(user_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 class CrearEstudianteAPIView(APIView):
     permission_classes = [IsAuthenticated]
