@@ -9,6 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework import viewsets
+from django.core.mail import send_mail
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -173,8 +174,35 @@ class MatriculaViewSet(viewsets.ModelViewSet):
         if nuevo_estado in ['Aprobado', 'Rechazado', 'Pendiente']:
             matricula.estado = nuevo_estado
             matricula.save()
+
+            # Enviar correo si el estado es "Aprobado"
+            if nuevo_estado == 'Aprobado':
+                print(settings.EMAIL_HOST_USER)
+                self._send_approval_email(matricula)
+
             return Response({"message": "Estado de la matrícula actualizado"}, status=status.HTTP_200_OK)
         return Response({"error": "Estado no válido"}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _send_approval_email(self, matricula):
+        """Envía un correo al usuario cuando la matrícula es aprobada."""
+        user_email = matricula.estudiante.usuario.email
+        student_name = matricula.estudiante.usuario.get_full_name()
+
+        subject = "¡Tu matrícula ha sido aprobada!"
+        message = (
+            f"Hola {student_name},\n\n"
+            f"Te informamos que tu matrícula para el curso '{matricula.curso}' ha sido aprobada. "
+            "Si tienes alguna consulta, no dudes en contactarnos.\n\n"
+            "Saludos,\nEl equipo de gestión de matrículas."
+        )
+        from_email = settings.DEFAULT_FROM_EMAIL
+        recipient_list = [user_email]
+
+        try:
+            send_mail(subject, message, from_email, recipient_list)
+        except Exception as e:
+            # Manejo de errores
+            print(f"Error al enviar el correo: {str(e)}")
     
 class UserRoleAPIView(APIView):
     permission_classes = [IsAuthenticated]
